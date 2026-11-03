@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
+
+
 import {
   BrowserRouter,
   Routes,
@@ -116,10 +118,14 @@ function RegisterPage() {
   });
 
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
     setError("");
+    setSuccess("");
 
     if (
       !form.owner.trim() ||
@@ -137,24 +143,69 @@ function RegisterPage() {
     }
 
     const googleReviewUrl = form.googleReviewUrl.trim();
-    if (googleReviewUrl && !isGoogleReviewUrl(googleReviewUrl)) {
-      setError(
-        "Enter a valid HTTPS Google review link, such as a g.page or Google Maps review link.",
-      );
+
+    if (
+      googleReviewUrl &&
+      !isGoogleReviewUrl(googleReviewUrl)
+    ) {
+      setError("Enter a valid HTTPS Google review link.");
       return;
     }
 
-    const business = {
-      ...form,
-      googleReviewUrl,
-      id: "business-" + Date.now(),
-      createdAt: new Date().toISOString(),
-    };
+    setLoading(true);
 
-    localStorage.setItem("aakaar_business", JSON.stringify(business));
-    localStorage.setItem("aakaar_logged_in", "true");
+    try {
+      // STEP 1: Create Supabase authentication account
+      const { data, error: signupError } =
+        await supabase.auth.signUp({
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
 
-    navigate("/dashboard");
+          options: {
+            emailRedirectTo: `${window.location.origin}/login`,
+
+            data: {
+              owner_name: form.owner.trim(),
+              business_name: form.business.trim(),
+              category: form.category,
+              google_review_url: googleReviewUrl,
+            },
+          },
+        });
+
+      if (signupError) {
+        throw signupError;
+      }
+
+      // STEP 2: Handle email verification
+      if (data.user && !data.session) {
+        setSuccess(
+          "Your account has been created successfully! Please check your email and click the verification link to activate your account. You can log in after verification."
+        );
+
+        return;
+      }
+
+      // STEP 3: If a session is returned, go to dashboard
+      if (data.session) {
+        navigate("/dashboard");
+        return;
+      }
+
+      setSuccess(
+        "Registration successful! Please check your email for further instructions."
+      );
+
+    } catch (err) {
+      console.error("Registration error:", err);
+
+      setError(
+        err.message || "Registration failed. Please try again."
+      );
+
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -164,47 +215,71 @@ function RegisterPage() {
           <Logo />
 
           <Link to="/" className="back-link">
-            <ArrowRight size={15} style={{ transform: "rotate(180deg)" }} />
+            <ArrowRight
+              size={15}
+              style={{ transform: "rotate(180deg)" }}
+            />
             Back to home
           </Link>
 
           <h1>Create your account.</h1>
+
           <p className="section-description">
             Start collecting customer feedback with AAKAAR.
           </p>
 
           <form onSubmit={handleSubmit}>
+
+            {/* OWNER NAME */}
             <div className="form-group">
               <label>Owner name *</label>
+
               <input
                 className="form-input"
+                type="text"
                 placeholder="Your full name"
                 value={form.owner}
                 onChange={(e) =>
-                  setForm({ ...form, owner: e.target.value })
+                  setForm({
+                    ...form,
+                    owner: e.target.value,
+                  })
                 }
+                required
               />
             </div>
 
+            {/* BUSINESS NAME */}
             <div className="form-group">
               <label>Business name *</label>
+
               <input
                 className="form-input"
+                type="text"
                 placeholder="Your business name"
                 value={form.business}
                 onChange={(e) =>
-                  setForm({ ...form, business: e.target.value })
+                  setForm({
+                    ...form,
+                    business: e.target.value,
+                  })
                 }
+                required
               />
             </div>
 
+            {/* BUSINESS CATEGORY */}
             <div className="form-group">
               <label>Business category</label>
+
               <select
                 className="form-input"
                 value={form.category}
                 onChange={(e) =>
-                  setForm({ ...form, category: e.target.value })
+                  setForm({
+                    ...form,
+                    category: e.target.value,
+                  })
                 }
               >
                 {[
@@ -218,78 +293,145 @@ function RegisterPage() {
                   "Professional Services",
                   "Other",
                 ].map((category) => (
-                  <option key={category}>{category}</option>
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
                 ))}
               </select>
             </div>
 
+            {/* EMAIL */}
             <div className="form-group">
               <label>Email address *</label>
+
               <input
                 className="form-input"
                 type="email"
                 placeholder="you@example.com"
                 value={form.email}
                 onChange={(e) =>
-                  setForm({ ...form, email: e.target.value })
+                  setForm({
+                    ...form,
+                    email: e.target.value,
+                  })
                 }
+                required
               />
             </div>
 
+            {/* PASSWORD */}
             <div className="form-group">
               <label>Password *</label>
+
               <input
                 className="form-input"
                 type="password"
                 placeholder="Minimum 6 characters"
                 value={form.password}
                 onChange={(e) =>
-                  setForm({ ...form, password: e.target.value })
+                  setForm({
+                    ...form,
+                    password: e.target.value,
+                  })
                 }
+                minLength={6}
+                required
               />
             </div>
 
-            <div className="form-group" id="google-review-url">
+            {/* GOOGLE REVIEW LINK */}
+            <div
+              className="form-group"
+              id="google-review-url"
+            >
               <label>Google review link (optional)</label>
+
               <input
                 className="form-input"
                 type="url"
                 placeholder="Paste your Google review link"
                 value={form.googleReviewUrl}
                 onChange={(e) =>
-                  setForm({ ...form, googleReviewUrl: e.target.value })
+                  setForm({
+                    ...form,
+                    googleReviewUrl: e.target.value,
+                  })
                 }
               />
+
               <p className="mt-2 text-xs leading-5 text-slate-500">
-                Customers can choose to open this link after submitting
-                feedback. Their Google review is published only on Google.
+                Customers can choose to open this link after
+                submitting feedback. Their Google review is
+                published only on Google.
               </p>
             </div>
 
-            {error && <p className="form-error">{error}</p>}
+            {/* ERROR MESSAGE */}
+            {error && (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            )}
 
-            <button className="btn btn-primary auth-submit" type="submit">
-              Create account <ArrowRight size={17} />
+            {/* SUCCESS MESSAGE */}
+            {success && (
+              <div
+                className="form-success"
+                role="status"
+                style={{
+                  background: "#ecfdf5",
+                  color: "#047857",
+                  border: "1px solid #a7f3d0",
+                  padding: "14px",
+                  borderRadius: "10px",
+                  fontSize: "13px",
+                  lineHeight: "1.6",
+                  marginBottom: "16px",
+                }}
+              >
+                {success}
+              </div>
+            )}
+
+            {/* SUBMIT BUTTON */}
+            <button
+              className="btn btn-primary auth-submit"
+              type="submit"
+              disabled={loading}
+            >
+              {loading
+                ? "Creating account..."
+                : "Create account"}
+
+              {!loading && <ArrowRight size={17} />}
             </button>
+
           </form>
 
           <p className="auth-switch">
-            Already have an account? <Link to="/login">Log in</Link>
+            Already have an account?{" "}
+            <Link to="/login">Log in</Link>
           </p>
+
         </div>
       </div>
 
+      {/* RIGHT VISUAL PANEL */}
       <div className="auth-visual">
         <div className="auth-visual-content">
           <Sparkles size={35} />
+
           <h2>Better feedback. Better business.</h2>
+
           <p>
-            Give your customers a simple way to share their experience and
-            give your business a better understanding of what matters.
+            Give your customers a simple way to share their
+            experience and give your business a better
+            understanding of what matters.
           </p>
 
           <div className="auth-visual-stat">
             <TrendingUp size={23} />
+
             <div>
               <strong>One simple platform.</strong>
               <span>Everything in one place.</span>
@@ -311,27 +453,30 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setError("");
+    setLoading(true);
 
-    const business = getBusiness();
+    try {
+      const { data, error: loginError } =
+        await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        });
 
-    if (!business) {
-      setError("No demo account found. Please register first.");
-      return;
+      if (loginError) throw loginError;
+
+      if (data.session) {
+        navigate("/dashboard");
+      }
+    } catch (err) {
+      setError(err.message || "Login failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    if (
-      business.email.toLowerCase() !== email.toLowerCase() ||
-      business.password !== password
-    ) {
-      setError("Incorrect email or password.");
-      return;
-    }
-
-    localStorage.setItem("aakaar_logged_in", "true");
-    navigate("/dashboard");
   };
 
   return (
@@ -377,8 +522,13 @@ function LoginPage() {
 
             {error && <p className="form-error">{error}</p>}
 
-            <button className="btn btn-primary auth-submit" type="submit">
-              Log in <ArrowRight size={17} />
+            <button
+              className="btn btn-primary auth-submit"
+              type="submit"
+              disabled={loading}
+            >
+              {loading ? "Logging in..." : "Log in"}
+              {!loading && <ArrowRight size={17} />}
             </button>
           </form>
 
@@ -406,67 +556,228 @@ function LoginPage() {
    DASHBOARD SIDEBAR
 ========================================= */
 
-function DashboardSidebar() {
-  const navigate = useNavigate();
 
-  const logout = () => {
-    localStorage.removeItem("aakaar_logged_in");
-    navigate("/");
+function DashboardSidebar({ business }) {
+  const navigate = useNavigate();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const logout = async () => {
+    try {
+      setLoggingOut(true);
+
+      const { error } = await supabase.auth.signOut();
+
+      if (error) throw error;
+
+      navigate("/login", { replace: true });
+    } catch (error) {
+      console.error("Logout failed:", error.message);
+      alert("Unable to log out. Please try again.");
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   return (
-    <aside className="sidebar">
-      <Logo />
+    <aside className="flex w-full flex-col border-r border-slate-200 bg-white md:min-h-screen md:w-64 md:shrink-0">
+      {/* Brand */}
+      <div className="border-b border-slate-100 px-6 py-6">
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+          aakaar<span className="text-blue-600">.</span>
+        </h2>
+        <p className="mt-1 text-xs font-medium tracking-wide text-slate-400">
+          REVIEWS DASHBOARD
+        </p>
+      </div>
 
-      <div className="sidebar-business">
-        <div className="business-avatar">
-          <Building2 size={20} />
-        </div>
-        <div>
-          <strong>{getBusiness()?.business || "My Business"}</strong>
-          <span>Business account</span>
+      {/* Business Profile */}
+      <div className="border-b border-slate-100 px-6 py-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-lg font-bold text-blue-600">
+            {business?.business_name?.charAt(0)?.toUpperCase() || "B"}
+          </div>
+
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-800">
+              {business?.business_name || "Your Business"}
+            </p>
+
+            <p className="mt-1 truncate text-xs text-slate-400">
+              {business?.category || "Business Account"}
+            </p>
+          </div>
         </div>
       </div>
 
-      <nav className="sidebar-links">
-        <Link to="/dashboard" className="active">
-          <LayoutDashboard size={18} /> Overview
-        </Link>
+      {/* Navigation */}
+      <nav className="flex flex-1 flex-row items-center gap-2 overflow-x-auto p-4 md:flex-col md:items-stretch">
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="flex shrink-0 items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 text-left text-sm font-semibold text-blue-700"
+        >
+          <span>▦</span>
+          Dashboard
+        </button>
 
-        <a href="#reviews">
-          <MessageSquare size={18} /> Customer reviews
-        </a>
-
-        <a href="#qr-code">
-          <QrCode size={18} /> My QR code
-        </a>
-
-        <a href="#settings">
-          <Settings size={18} /> Settings
-        </a>
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+        >
+          <span>★</span>
+          Reviews
+        </button>
       </nav>
 
-      <button className="sidebar-logout" onClick={logout}>
-        <LogOut size={18} /> Log out
-      </button>
+      {/* Account and Logout */}
+      <div className="border-t border-slate-100 p-4">
+        <div className="mb-4 hidden px-3 md:block">
+          <p className="truncate text-xs text-slate-400">
+            Logged in as
+          </p>
+          <p className="mt-1 truncate text-sm font-medium text-slate-700">
+            {business?.email || ""}
+          </p>
+        </div>
+
+        <button
+          onClick={logout}
+          disabled={loggingOut}
+          className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span>↪</span>
+          {loggingOut ? "Logging out..." : "Logout"}
+        </button>
+      </div>
     </aside>
   );
 }
+
 
 /* =========================================
    DASHBOARD
 ========================================= */
 
+
 function DashboardPage() {
-  const business = getBusiness();
-  const [reviews, setReviews] = useState(getReviews());
+  const [business, setBusiness] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const update = () => setReviews(getReviews());
-    window.addEventListener("storage", update);
-    return () => window.removeEventListener("storage", update);
+    let isMounted = true;
+
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        // Get logged-in user
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError) throw userError;
+
+        if (!user) {
+          throw new Error("Please log in to access your dashboard.");
+        }
+
+        // Fetch business profile
+        const { data: businessData, error: businessError } =
+          await supabase
+            .from("businesses")
+            .select("*")
+            .eq("owner_id", user.id)
+            .maybeSingle();
+
+        if (businessError) throw businessError;
+
+        if (!businessData) {
+          throw new Error("Business profile not found.");
+        }
+
+        if (!isMounted) return;
+
+        setBusiness(businessData);
+
+        // Fetch business reviews
+        const { data: reviewData, error: reviewError } =
+          await supabase
+            .from("reviews")
+            .select("*")
+            .eq("business_id", businessData.id)
+            .order("created_at", { ascending: false });
+
+        if (reviewError) throw reviewError;
+
+        if (!isMounted) return;
+
+        const formattedReviews = (reviewData || []).map((review) => ({
+          id: review.id,
+          customer: review.customer_name || "Customer",
+          rating: review.rating,
+          text: review.review_text || "",
+          createdAt: review.created_at,
+        }));
+
+        setReviews(formattedReviews);
+      } catch (err) {
+        console.error("Dashboard error:", err);
+
+        if (isMounted) {
+          setError(err.message || "Unable to load dashboard.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchDashboardData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
+  // Loading screen
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+          <p className="text-sm font-medium text-slate-500">
+            Loading your dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error screen
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">
+        <h2 className="mb-2 text-xl font-bold text-slate-900">
+          Unable to load dashboard
+        </h2>
+
+        <p className="mb-6 text-sm text-slate-500">{error}</p>
+
+        <button
+          onClick={() => (window.location.href = "/login")}
+          className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+        >
+          Back to Login
+        </button>
+      </div>
+    );
+  }
+
+  // Dashboard calculations
   const totalReviews = reviews.length;
 
   const averageRating =
@@ -481,197 +792,271 @@ function DashboardPage() {
     (review) => review.rating === 5
   ).length;
 
-  const reviewUrl = `${window.location.origin}/review/${
-    business?.id || "demo-business"
-  }`;
+  const ratingCounts = [5, 4, 3, 2, 1].map((rating) => ({
+    rating,
+    count: reviews.filter((review) => review.rating === rating).length,
+  }));
 
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(reviewUrl);
-      alert("Review link copied!");
-    } catch {
-      alert("Please copy this link manually: " + reviewUrl);
-    }
+  const formatDate = (date) => {
+    if (!date) return "";
+
+    return new Date(date).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   return (
-    <div className="dashboard-layout">
-      <DashboardSidebar />
+    <div className="min-h-screen bg-slate-50 md:flex">
+      {/* Sidebar */}
+      <DashboardSidebar business={business} />
 
-      <main className="dashboard-main">
-        <div className="dashboard-content">
-          <div className="dashboard-header">
+      {/* Main Content */}
+      <main className="min-w-0 flex-1 px-5 py-8 sm:px-8 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+
+          {/* Header */}
+          <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <span className="dashboard-eyebrow">BUSINESS OVERVIEW</span>
-              <h1>Welcome, {business?.owner || "Business Owner"}.</h1>
-              <p>Here's what's happening with your customer feedback.</p>
-            </div>
-
-            <Link to={`/review/${business?.id || "demo-business"}`} className="btn btn-primary">
-              <QrCode size={17} /> Preview review page
-            </Link>
-          </div>
-
-          <div className="dashboard-stat-grid">
-            <div className="dashboard-stat">
-              <div className="dashboard-stat-top">
-                <span>Total reviews</span>
-                <MessageSquare size={20} />
-              </div>
-              <h2>{totalReviews}</h2>
-              <span className="stat-change">
-                <TrendingUp size={14} /> Customer responses
-              </span>
-            </div>
-
-            <div className="dashboard-stat">
-              <div className="dashboard-stat-top">
-                <span>Average rating</span>
-                <Star size={20} />
-              </div>
-              <h2>{averageRating}<small>/5</small></h2>
-              <span className="stat-change">
-                <TrendingUp size={14} /> Overall satisfaction
-              </span>
-            </div>
-
-            <div className="dashboard-stat">
-              <div className="dashboard-stat-top">
-                <span>5-star reviews</span>
-                <ThumbsUp size={20} />
-              </div>
-              <h2>{fiveStarReviews}</h2>
-              <span className="stat-change">
-                <TrendingUp size={14} /> Positive experiences
-              </span>
-            </div>
-          </div>
-
-          <div className="dashboard-two-column">
-            <section className="dashboard-panel" id="qr-code">
-              <div className="panel-heading">
-                <div>
-                  <h2>Your review QR</h2>
-                  <p>Share this link with your customers.</p>
-                </div>
-                <QrCode size={23} color="#1746A2" />
-              </div>
-
-              <div className="qr-placeholder">
-                <QrCode size={100} strokeWidth={1.2} />
-                <span>YOUR BUSINESS QR</span>
-              </div>
-
-              <div className="review-link">
-                <span>{reviewUrl}</span>
-                <button onClick={copyLink} aria-label="Copy review link">
-                  <Copy size={17} />
-                </button>
-              </div>
-
-              <Link
-                to={`/review/${business?.id || "demo-business"}`}
-                className="btn btn-primary full-width"
-              >
-                Open customer review page <ExternalLink size={16} />
-              </Link>
-
-              <p className="qr-note">
-                Note: This is a preview QR placeholder. A downloadable QR
-                code will be added in the next stage.
+              <p className="mb-1 text-sm font-medium text-blue-600">
+                Business Dashboard
               </p>
-            </section>
 
-            <section className="dashboard-panel" id="reviews">
-              <div className="panel-heading">
-                <div>
-                  <h2>Recent feedback</h2>
-                  <p>What your customers are saying.</p>
-                </div>
-                <MessageSquare size={22} color="#1746A2" />
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                Welcome, {business.owner_name || "there"}!
+              </h1>
+
+              <p className="mt-2 text-sm text-slate-500">
+                Here's how your business reviews are performing.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <p className="text-xs text-slate-400">Your Business</p>
+              <p className="font-semibold text-slate-800">
+                {business.business_name}
+              </p>
+            </div>
+          </div>
+
+          {/* Statistics Cards */}
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-sm font-medium text-slate-500">
+                Total Reviews
+              </p>
+              <h2 className="mt-3 text-3xl font-bold text-slate-900">
+                {totalReviews}
+              </h2>
+              <p className="mt-2 text-xs text-slate-400">
+                Reviews received
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-sm font-medium text-slate-500">
+                Average Rating
+              </p>
+              <h2 className="mt-3 text-3xl font-bold text-slate-900">
+                {averageRating}
+                <span className="ml-2 text-xl text-amber-400">★</span>
+              </h2>
+              <p className="mt-2 text-xs text-slate-400">
+                Out of 5 stars
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-sm font-medium text-slate-500">
+                5-Star Reviews
+              </p>
+              <h2 className="mt-3 text-3xl font-bold text-slate-900">
+                {fiveStarReviews}
+              </h2>
+              <p className="mt-2 text-xs text-slate-400">
+                Excellent customer ratings
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-sm font-medium text-slate-500">
+                Business Category
+              </p>
+              <h2 className="mt-3 text-xl font-bold text-slate-900">
+                {business.category || "Other"}
+              </h2>
+              <p className="mt-2 text-xs text-slate-400">
+                Registered category
+              </p>
+            </div>
+          </div>
+
+          {/* Reviews Overview */}
+          <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+
+            {/* Rating Breakdown */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <h2 className="mb-6 text-lg font-bold text-slate-900">
+                Rating Breakdown
+              </h2>
+
+              <div className="space-y-5">
+                {ratingCounts.map(({ rating, count }) => {
+                  const percentage =
+                    totalReviews > 0
+                      ? (count / totalReviews) * 100
+                      : 0;
+
+                  return (
+                    <div key={rating}>
+                      <div className="mb-2 flex items-center justify-between text-sm">
+                        <span className="font-medium text-slate-600">
+                          {rating} Stars
+                        </span>
+
+                        <span className="text-slate-500">
+                          {count}
+                        </span>
+                      </div>
+
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-amber-400 transition-all"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+            </div>
 
-              {reviews.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-state-icon">
-                    <MessageSquare size={27} />
-                  </div>
-                  <h3>No reviews yet</h3>
-                  <p>
-                    Your customer feedback will appear here once someone
-                    submits a review.
+            {/* Business Information */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-2">
+              <h2 className="mb-6 text-lg font-bold text-slate-900">
+                Business Information
+              </h2>
+
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    Business Name
+                  </p>
+                  <p className="mt-2 font-semibold text-slate-800">
+                    {business.business_name}
                   </p>
                 </div>
-              ) : (
-                <div className="recent-reviews">
-                  {[...reviews].reverse().slice(0, 5).map((review) => (
-                    <div className="recent-review" key={review.id}>
-                      <div className="recent-review-top">
-                        <strong>{review.customer || "Customer"}</strong>
-                        <StarRating rating={review.rating} size={13} />
-                      </div>
-                      <p>
-                        {review.text || "Submitted a rating without written feedback."}
-                      </p>
-                      <span>
-                        {new Date(review.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
+
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    Owner Name
+                  </p>
+                  <p className="mt-2 font-semibold text-slate-800">
+                    {business.owner_name || "Not provided"}
+                  </p>
                 </div>
-              )}
-            </section>
+
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    Email Address
+                  </p>
+                  <p className="mt-2 break-all font-semibold text-slate-800">
+                    {business.email}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    Category
+                  </p>
+                  <p className="mt-2 font-semibold text-slate-800">
+                    {business.category || "Other"}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <section className="dashboard-panel settings-panel" id="settings">
-            <div>
-              <h2>Business information</h2>
-              <p>Manage your registered business details.</p>
+          {/* Recent Reviews */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="flex flex-col justify-between gap-2 border-b border-slate-100 p-6 sm:flex-row sm:items-center">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Recent Reviews
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Customer feedback for your business
+                </p>
+              </div>
+
+              <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
+                {totalReviews} Reviews
+              </span>
             </div>
 
-            <div className="business-information">
-              <div>
-                <span>Business name</span>
-                <strong>{business?.business || "Not available"}</strong>
+            {reviews.length === 0 ? (
+              <div className="px-6 py-16 text-center">
+                <div className="mb-3 text-4xl">⭐</div>
+
+                <h3 className="font-semibold text-slate-800">
+                  No reviews yet
+                </h3>
+
+                <p className="mt-2 text-sm text-slate-500">
+                  Your customer reviews will appear here once submitted.
+                </p>
               </div>
-              <div>
-                <span>Owner</span>
-                <strong>{business?.owner || "Not available"}</strong>
-              </div>
-              <div>
-                <span>Category</span>
-                <strong>{business?.category || "Other"}</strong>
-              </div>
-              <div>
-                <span>Email</span>
-                <strong>{business?.email || "Not available"}</strong>
-              </div>
-              <div>
-                <span>Google review profile</span>
-                {business?.googleReviewUrl ? (
-                  <a
-                    href={business.googleReviewUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-blue-700 hover:underline"
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {reviews.map((review) => (
+                  <div
+                    key={review.id}
+                    className="flex flex-col gap-3 p-6 sm:flex-row sm:items-start sm:justify-between"
                   >
-                    Open configured profile
-                  </a>
-                ) : (
-                  <strong>Not configured</strong>
-                )}
-              </div>
-            </div>
-          </section>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-slate-900">
+                        {review.customer}
+                      </h3>
 
-          <div className="dashboard-footer">
-            Powered by <strong>AAKAAR Reviews</strong>
+                      <div className="mt-1 flex items-center gap-1 text-amber-400">
+                        {Array.from({ length: 5 }).map((_, index) => (
+                          <span
+                            key={index}
+                            className={
+                              index < review.rating
+                                ? "text-amber-400"
+                                : "text-slate-200"
+                            }
+                          >
+                            ★
+                          </span>
+                        ))}
+                      </div>
+
+                      {review.text && (
+                        <p className="mt-3 text-sm leading-6 text-slate-600">
+                          {review.text}
+                        </p>
+                      )}
+                    </div>
+
+                    <span className="shrink-0 text-xs text-slate-400">
+                      {formatDate(review.createdAt)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
         </div>
       </main>
     </div>
   );
 }
+
 
 /* =========================================
    CUSTOMER REVIEW PAGE
@@ -715,20 +1100,61 @@ const reviewOptions = {
   ],
 };
 
+
 function CustomerReviewPage() {
   const { businessId } = useParams();
 
-  const business = getBusiness();
-
+  const [business, setBusiness] = useState(null);
+  const [businessLoading, setBusinessLoading] = useState(true);
   const [rating, setRating] = useState(0);
   const [selectedReview, setSelectedReview] = useState("");
   const [customReview, setCustomReview] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const options = reviewOptions[rating] || [];
 
-  const handleSubmit = (e) => {
+  // Fetch business details from Supabase
+  useEffect(() => {
+    let active = true;
+
+    const fetchBusiness = async () => {
+      try {
+        setBusinessLoading(true);
+        setError("");
+
+        const { data, error: fetchError } = await supabase
+          .from("businesses")
+          .select("id, business_name, google_review_url")
+          .eq("id", businessId)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        if (!data) {
+          throw new Error("This business could not be found.");
+        }
+
+        if (active) setBusiness(data);
+      } catch (err) {
+        console.error("Business fetch error:", err);
+        if (active) setError(err.message || "Unable to load business.");
+      } finally {
+        if (active) setBusinessLoading(false);
+      }
+    };
+
+    fetchBusiness();
+
+    return () => {
+      active = false;
+    };
+  }, [businessId]);
+
+  // Submit review to Supabase
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!rating) {
@@ -736,23 +1162,61 @@ function CustomerReviewPage() {
       return;
     }
 
+    if (!business) {
+      setError("Business information is unavailable.");
+      return;
+    }
+
     const reviewText = customReview.trim() || selectedReview;
 
-    const newReview = {
-      id: Date.now().toString(),
-      businessId,
-      customer: customerName.trim() || "Customer",
-      rating,
-      text: reviewText,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      setSubmitting(true);
+      setError("");
 
-    const allReviews = getReviews();
-    allReviews.push(newReview);
-    saveReviews(allReviews);
+      const { error: insertError } = await supabase
+        .from("reviews")
+        .insert([
+          {
+            business_id: business.id,
+            customer_name: customerName.trim() || "Customer",
+            rating: rating,
+            review_text: reviewText || null,
+          },
+        ]);
 
-    setSubmitted(true);
+      if (insertError) throw insertError;
+
+      setSubmitted(true);
+    } catch (err) {
+      console.error("Review submission error:", err);
+      setError(
+        err.message || "Unable to submit your feedback. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  if (businessLoading) {
+    return (
+      <div className="customer-review-page">
+        <div className="customer-review-card">
+          <p>Loading business details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !business) {
+    return (
+      <div className="customer-review-page">
+        <div className="customer-review-card">
+          <h1>Business unavailable</h1>
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -761,17 +1225,22 @@ function CustomerReviewPage() {
           <div className="success-icon">
             <CheckCircle2 size={48} />
           </div>
+
           <div className="section-label">FEEDBACK RECEIVED</div>
+
           <h1>Thank you for sharing!</h1>
+
           <p>
             Your feedback was sent to this business through AAKAAR. A Google
             review is separate and is only published if you choose to submit
             one on Google.
           </p>
+
           <StarRating rating={rating} size={24} />
-          {business?.id === businessId && business.googleReviewUrl ? (
+
+          {business.google_review_url ? (
             <a
-              href={business.googleReviewUrl}
+              href={business.google_review_url}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary"
@@ -783,6 +1252,7 @@ function CustomerReviewPage() {
               This business hasn’t connected a Google review profile.
             </p>
           )}
+
           <span className="success-brand">Powered by AAKAAR Reviews</span>
         </div>
       </div>
@@ -804,9 +1274,7 @@ function CustomerReviewPage() {
         <h1>How was your experience?</h1>
 
         <p className="customer-business-name">
-          {business?.id === businessId
-            ? business.business
-            : "We value your experience"}
+          {business.business_name || "We value your experience"}
         </p>
 
         <p className="customer-review-description">
@@ -858,6 +1326,7 @@ function CustomerReviewPage() {
                   <h3>Want to tell us more?</h3>
                   <p>Choose a message or write your own.</p>
                 </div>
+
                 <span>OPTIONAL</span>
               </div>
 
@@ -877,6 +1346,7 @@ function CustomerReviewPage() {
                     }}
                   >
                     <span>{option}</span>
+
                     <span className="suggestion-check">
                       {selectedReview === option ? (
                         <CheckCircle2 size={19} />
@@ -911,8 +1381,17 @@ function CustomerReviewPage() {
               />
             </div>
 
-            <button type="submit" className="btn btn-primary review-submit">
-              Submit feedback <ArrowRight size={17} />
+            {error && (
+              <p className="my-3 text-sm text-red-600">{error}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn btn-primary review-submit"
+            >
+              {submitting ? "Submitting..." : "Submit feedback"}
+              {!submitting && <ArrowRight size={17} />}
             </button>
           </form>
         )}
@@ -926,15 +1405,70 @@ function CustomerReviewPage() {
   );
 }
 
+
 /* =========================================
    ROUTE GUARD
 ========================================= */
 
-function ProtectedRoute({ children }) {
-  const loggedIn = localStorage.getItem("aakaar_logged_in") === "true";
 
-  return loggedIn ? children : <Navigate to="/login" replace />;
+function ProtectedRoute({ children }) {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    // Check existing Supabase session
+    const checkSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!isMounted) return;
+
+      if (error) {
+        console.error("Session error:", error.message);
+        setSession(null);
+      } else {
+        setSession(data.session);
+      }
+
+      setLoading(false);
+    };
+
+    checkSession();
+
+    // Listen for login and logout changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (isMounted) {
+        setSession(newSession);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-sm font-medium text-slate-500">
+          Checking authentication...
+        </p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
 }
+
 
 /* =========================================
    MAIN APP
