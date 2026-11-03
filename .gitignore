@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+VITE_SUPABASE_URL=https://ldzdiuvltryigtvdogrt.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_6QTFRQEkjYB9fzo6TbZ3Hw_pEiBQfqd
