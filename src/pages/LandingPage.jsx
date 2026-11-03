@@ -8,8 +8,10 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ExternalLink,
   Menu,
   MessageSquare,
+  MousePointer2,
   QrCode,
   ScanLine,
   Sparkles,
@@ -17,6 +19,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
+import { getConfiguredGoogleReviewUrl } from "../utils/googleReviewUrl.js";
 
 function Logo() {
   return (
@@ -160,7 +163,7 @@ function Reveal({ children, className = "", delay = 0 }) {
   );
 }
 
-function AnimatedCounter({ value, suffix = "" }) {
+function AnimatedCounter({ value, suffix = "", decimals = 0 }) {
   const ref = useRef(null);
   const [count, setCount] = useState(0);
 
@@ -210,9 +213,13 @@ function AnimatedCounter({ value, suffix = "" }) {
     };
   }, [value]);
 
+  const formattedCount = decimals
+    ? (count / 10 ** decimals).toFixed(decimals)
+    : count.toLocaleString("en-IN");
+
   return (
-    <span ref={ref} aria-label={`${value.toLocaleString("en-IN")}${suffix}`}>
-      {count.toLocaleString("en-IN")}
+    <span ref={ref} aria-label={`${formattedCount}${suffix}`}>
+      {formattedCount}
       {suffix}
     </span>
   );
@@ -327,7 +334,7 @@ function Hero() {
   return (
     <section className="hero-section bg-[#F7F9FC] lg:h-[calc(100svh-72px)]">
       <div className="hero-inner mx-auto grid w-full max-w-[1440px] items-center gap-8 px-5 py-10 sm:px-8 lg:h-full lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:px-14 lg:py-8">
-        <div className="relative z-10">
+        <Reveal className="relative z-10">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-white px-3.5 py-2 text-[9px] font-bold uppercase tracking-[1.7px] text-emerald-800">
             <Sparkles size={13} className="text-emerald-600" />
             Smart customer feedback for local businesses
@@ -362,28 +369,32 @@ function Hero() {
           </div>
 
           <div className="mt-6 border-t border-slate-200 pt-4">
-            <p className="mb-3 text-[9px] font-bold uppercase tracking-[1.5px] text-slate-400">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[1.5px] text-slate-400">
               Illustrative sample data · Not actual AAKAAR results
             </p>
             <div className="grid grid-cols-3 gap-3">
               {[
                 { label: "Customer feedback collected", value: 1284, suffix: "+" },
-                { label: "Average customer rating", value: 4.8, suffix: "/5" },
+                { label: "Average customer rating", value: 48, suffix: "/5", decimals: 1 },
                 { label: "Businesses using AAKAAR", value: 320, suffix: "+" },
               ].map((stat) => (
                 <div key={stat.label} className="min-w-0">
                   <p className="flex items-center gap-1 text-xl font-extrabold tracking-tight text-emerald-700 sm:text-2xl">
                     <TrendingUp size={14} className="shrink-0" />
-                    <AnimatedCounter value={stat.value} suffix={stat.suffix} />
+                    <AnimatedCounter
+                      value={stat.value}
+                      suffix={stat.suffix}
+                      decimals={stat.decimals}
+                    />
                   </p>
-                  <p className="mt-1 text-[9px] font-medium leading-3.5 text-slate-500 sm:text-[10px]">
+                  <p className="mt-1 text-[10px] font-medium leading-4 text-slate-600 sm:text-[11px]">
                     {stat.label}
                   </p>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        </Reveal>
 
         <Reveal className="relative mx-auto w-full max-w-[600px]">
           <DashboardPreview />
@@ -399,6 +410,8 @@ function MobileDemo() {
   const autoPlayedRef = useRef(false);
   const [phase, setPhase] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [googleReviewUrl] = useState(getConfiguredGoogleReviewUrl);
+  const submitted = phase >= 6;
 
   const runDemo = () => {
     window.clearTimeout(timerRef.current);
@@ -406,7 +419,7 @@ function MobileDemo() {
     setIsPlaying(true);
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setPhase(4);
+      setPhase(7);
       setIsPlaying(false);
       return;
     }
@@ -414,11 +427,22 @@ function MobileDemo() {
     const advance = (nextPhase) => {
       timerRef.current = window.setTimeout(() => {
         setPhase(nextPhase);
-        if (nextPhase < 4) advance(nextPhase + 1);
+        if (nextPhase < 7) advance(nextPhase + 1);
         else setIsPlaying(false);
-      }, nextPhase === 4 ? 1250 : 1050);
+      }, 850);
     };
     advance(1);
+  };
+
+  const submitDemoFeedback = () => {
+    if (phase < 2 || submitted) return;
+    window.clearTimeout(timerRef.current);
+    setPhase(6);
+    setIsPlaying(true);
+    timerRef.current = window.setTimeout(() => {
+      setPhase(7);
+      setIsPlaying(false);
+    }, 850);
   };
 
   useEffect(() => {
@@ -448,20 +472,44 @@ function MobileDemo() {
   }, []);
 
   const steps = [
-    "Scan your business QR code.",
+    "Scan the business QR code.",
+    "The feedback page opens.",
     "Select a star rating.",
-    "Choose an optional review suggestion.",
-    "Optionally share a comment and submit feedback.",
+    "Choose an optional suggestion.",
+    "Optionally write a comment.",
+    "Submit feedback to AAKAAR.",
+    "See AAKAAR feedback confirmation.",
+    "Choose whether to continue to Google.",
   ];
   const suggestions = ["Friendly service", "Quick and easy", "Great experience"];
-
+  const stageNames = [
+    "Scanning the QR code",
+    "Opening the feedback page",
+    "Selecting a rating",
+    "Choosing a suggestion",
+    "Writing optional feedback",
+    "Sending feedback to AAKAAR",
+    "Feedback received by AAKAAR",
+    "Google review is a separate step",
+  ];
+  const cursorPosition = [
+    { left: "72%", top: "158px" },
+    { left: "78%", top: "224px" },
+    { left: "79%", top: "298px" },
+    { left: "18%", top: "376px" },
+    { left: "78%", top: "442px" },
+    { left: "78%", top: "510px" },
+    { left: "78%", top: "510px" },
+    { left: "78%", top: "510px" },
+  ][Math.max(phase, 0)];
   return (
     <section
       id="experience"
       ref={sectionRef}
-      className="scroll-mt-20 overflow-hidden bg-[#F5F8F6] py-20 sm:py-24"
+      className="scroll-mt-20 overflow-hidden bg-[#F5F8F6] py-16 sm:py-20"
     >
-      <div className="mx-auto grid max-w-[1200px] items-center gap-12 px-5 sm:px-8 lg:grid-cols-2 lg:gap-20 lg:px-14">
+      <div className="mx-auto grid max-w-[1200px] items-start gap-10 px-5 sm:px-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-14 lg:px-14">
+        <Reveal>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[3px] text-emerald-700">
             EXPERIENCE AAKAAR
@@ -477,11 +525,14 @@ function MobileDemo() {
             See how a customer can interact with your business through a simple
             mobile feedback experience.
           </p>
+          <p className="mt-2 text-xs font-medium text-slate-500">
+            Illustrative demo only · no feedback is sent from this preview.
+          </p>
 
-          <div className="mt-8 space-y-4">
+          <div className="mt-7 space-y-3">
             {steps.map((step, index) => {
-              const complete = phase > index + 1;
-              const active = phase === index + 1;
+              const complete = phase > index;
+              const active = phase === index;
               return (
                 <div key={step} className="flex items-center gap-3">
                   <span
@@ -494,7 +545,7 @@ function MobileDemo() {
                     {complete ? <Check size={14} /> : `0${index + 1}`}
                   </span>
                   <span
-                    className={`text-sm transition ${
+                    className={`text-[13px] leading-5 transition sm:text-sm ${
                       active || complete ? "font-semibold text-slate-900" : "text-slate-500"
                     }`}
                   >
@@ -505,114 +556,190 @@ function MobileDemo() {
             })}
           </div>
         </div>
+        </Reveal>
 
-        <div className="relative flex flex-col items-center py-4">
+        <Reveal className="relative flex flex-col items-center py-1">
           <div className="absolute inset-5 rounded-full bg-emerald-100/70 blur-[80px]" />
-          <div className="relative w-[280px] rounded-[40px] border-[7px] border-slate-900 bg-slate-900 p-2 shadow-[0_30px_75px_rgba(15,23,42,0.2)]">
-            <div className="min-h-[550px] overflow-hidden rounded-[30px] bg-white">
+          <div className="relative w-full max-w-[320px] rounded-[40px] border-[7px] border-slate-900 bg-slate-900 p-2 shadow-[0_30px_75px_rgba(15,23,42,0.2)]">
+            <div className="relative min-h-[620px] overflow-hidden rounded-[30px] bg-white">
               <div className="mx-auto mt-2 h-5 w-20 rounded-full bg-slate-900" />
-              <div className="px-5 pb-5 pt-5 text-center">
+              <div className="px-4 pb-5 pt-4 text-center sm:px-5">
+                <div className="mb-3 inline-flex min-h-7 items-center gap-1.5 rounded-full bg-emerald-50 px-3 text-[10px] font-bold text-emerald-800" aria-live="polite">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                  {phase >= 0 ? `STEP ${Math.min(phase + 1, 8)} OF 8 · ${stageNames[phase]}` : "READY FOR THE DEMO"}
+                </div>
                 <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-700 text-white">
                   <Star size={21} fill="white" />
                 </div>
                 <h3 className="mt-3 text-base font-extrabold text-slate-900">
                   Your Business
                 </h3>
-                <p className="mt-1 text-[10px] text-slate-400">
+                <p className="mt-1 text-[11px] text-slate-500">
                   A quick check-in with your customers
                 </p>
 
-                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div className={`mt-4 rounded-2xl border p-3 transition-colors duration-300 ${
+                  phase === 0 ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-slate-50"
+                }`}>
                   <QrCode
                     size={56}
                     className={`mx-auto transition duration-300 ${
                       phase >= 0 ? "text-emerald-700" : "text-slate-800"
                     }`}
                   />
-                  <p className="mt-2 text-[10px] font-bold text-slate-700">
-                    {phase === 0 ? "QR code scanned" : "Scan to share feedback"}
+                  <p className="mt-2 text-[11px] font-bold text-slate-800">
+                    {phase >= 0 ? "QR code scanned" : "Scan to share feedback"}
                   </p>
-                  <p className="mt-1 text-[8px] text-slate-400">
-                    Interactive product demonstration
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Sample QR · Demonstration only
                   </p>
                 </div>
 
-                <div className="mt-5">
-                  <p className="text-xs font-bold text-slate-800">
-                    How was your experience?
-                  </p>
-                  <div className="mt-3 flex justify-center gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        size={24}
-                        className="transition-all duration-300"
-                        fill={phase >= 1 && star <= 5 ? "#FBBF24" : "none"}
-                        color={phase >= 1 && star <= 5 ? "#FBBF24" : "#CBD5E1"}
-                      />
-                    ))}
+                {phase < 1 ? (
+                  <div className="mt-4 rounded-xl bg-slate-50 px-3 py-4 text-xs leading-5 text-slate-600">
+                    A QR scan opens the customer feedback page—no app install needed.
                   </div>
-                </div>
-
-                <div className="mt-4 text-left">
-                  <p className="text-[9px] font-bold text-slate-700">
-                    What stood out? <span className="font-normal text-slate-400">Optional</span>
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {suggestions.map((suggestion, index) => (
-                      <span
-                        key={suggestion}
-                        className={`rounded-full border px-2 py-1 text-[8px] transition ${
-                          phase >= 2 && index === 0
-                            ? "border-emerald-300 bg-emerald-50 font-semibold text-emerald-800"
-                            : "border-slate-200 text-slate-500"
-                        }`}
-                      >
-                        {suggestion}
-                      </span>
-                    ))}
+                ) : submitted ? (
+                  <div className="mt-4">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <CheckCircle2 size={30} className="mx-auto text-emerald-700" />
+                      <p className="mt-2 text-sm font-bold text-emerald-900">
+                        Sample feedback received
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-emerald-800">
+                        Sample journey: the customer’s rating and optional message are received by the business through AAKAAR.
+                      </p>
+                    </div>
+                    <div className={`mt-3 rounded-xl border p-3 text-left transition-colors ${
+                      phase >= 7 ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white"
+                    }`}>
+                      <p className="text-[11px] font-bold text-slate-900">
+                        Next: optional Google review
+                      </p>
+                      <p className="mt-1 text-[10px] leading-4 text-slate-600">
+                        AAKAAR feedback is not a Google review. Google opens separately, and you decide whether to publish there.
+                      </p>
+                      {phase >= 7 && googleReviewUrl ? (
+                        <a
+                          href={googleReviewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 text-[11px] font-bold text-white transition hover:bg-blue-800"
+                        >
+                          Continue to this business on Google <ExternalLink size={13} />
+                        </a>
+                      ) : phase >= 7 ? (
+                        <Link
+                          to="/register#google-review-url"
+                          className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-blue-200 bg-white px-3 text-[11px] font-bold text-blue-800 transition hover:bg-blue-50"
+                        >
+                          Connect your Google review link
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="mt-3 rounded-xl border border-slate-200 p-2.5 text-left">
-                    <p className="text-[8px] font-semibold text-slate-400">
-                      Or write your own
+                ) : (
+                  <div className={`mt-4 rounded-2xl border p-3 text-left transition-colors ${
+                    phase === 2 ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-white"
+                  }`}>
+                    <p className="text-xs font-bold text-slate-800">
+                      How was your experience?
                     </p>
-                    <p className="mt-1 min-h-7 text-[9px] leading-4 text-slate-600">
-                      {phase >= 3 ? "Friendly service and a lovely visit." : "Share a few words (optional)"}
-                      {phase === 3 && <span className="demo-caret" aria-hidden="true">|</span>}
-                    </p>
-                  </div>
-
-                  <div
-                    className={`mt-3 flex min-h-10 items-center justify-center gap-2 rounded-xl text-[10px] font-bold transition ${
-                      phase >= 4 ? "bg-emerald-600 text-white" : "bg-blue-700 text-white"
-                    }`}
-                  >
-                    {phase >= 4 ? (
+                    <div className="mt-2 flex justify-center gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          size={25}
+                          className="transition-all duration-200"
+                          fill={phase >= 2 ? "#FBBF24" : "none"}
+                          color={phase >= 2 ? "#FBBF24" : "#CBD5E1"}
+                        />
+                      ))}
+                    </div>
+                    {phase >= 2 && (
                       <>
-                        <CheckCircle2 size={14} /> Feedback submitted
-                      </>
-                    ) : (
-                      <>
-                        Submit feedback <ArrowRight size={13} />
+                        <p className="mt-1 text-center text-[10px] font-semibold text-amber-700">
+                          Excellent · 5 out of 5
+                        </p>
+                        <div className="mt-3 border-t border-slate-100 pt-3">
+                          <p className="text-[11px] font-bold text-slate-700">
+                            What stood out? <span className="font-normal text-slate-500">Optional</span>
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {suggestions.map((suggestion, index) => (
+                              <span
+                                key={suggestion}
+                                className={`rounded-full border px-2.5 py-1.5 text-[10px] transition ${
+                                  phase >= 3 && index === 0
+                                    ? "border-emerald-300 bg-emerald-50 font-semibold text-emerald-900"
+                                    : "border-slate-200 text-slate-600"
+                                }`}
+                              >
+                                {suggestion}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        {phase >= 4 && (
+                          <div className="mt-3 rounded-xl border border-slate-200 px-3 py-2.5">
+                            <p className="text-[10px] font-semibold text-slate-500">
+                              Your message <span className="font-normal">(optional)</span>
+                            </p>
+                            <p className="mt-1 min-h-5 text-[11px] leading-5 text-slate-700">
+                              Friendly service and a lovely visit.
+                              {phase === 4 && <span className="demo-caret" aria-hidden="true">|</span>}
+                            </p>
+                          </div>
+                        )}
+                        <div className="relative mt-3">
+                          <button
+                            type="button"
+                            onClick={submitDemoFeedback}
+                            aria-label="Submit sample feedback in the demonstration"
+                            className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold text-white transition ${
+                              phase >= 5 ? "bg-emerald-700" : "bg-blue-700"
+                            }`}
+                          >
+                            {phase === 5 ? "Sending feedback…" : "Send sample feedback to AAKAAR"} <ArrowRight size={14} />
+                          </button>
+                        </div>
                       </>
                     )}
                   </div>
-                </div>
+                )}
               </div>
+              {phase >= 0 && phase <= 5 && (
+                <span
+                  className="demo-cursor"
+                  style={{ left: cursorPosition.left, top: cursorPosition.top }}
+                  aria-hidden="true"
+                >
+                  <MousePointer2 size={27} fill="white" strokeWidth={2.2} />
+                </span>
+              )}
+              {phase >= 7 && (
+                <span
+                  className="demo-cursor"
+                  style={{ left: cursorPosition.left, top: cursorPosition.top }}
+                  aria-hidden="true"
+                >
+                  <MousePointer2 size={27} fill="white" strokeWidth={2.2} />
+                </span>
+              )}
             </div>
             <span className="absolute -right-7 top-24 flex h-11 w-11 items-center justify-center rounded-xl bg-white text-emerald-700 shadow-lg">
               <ScanLine size={21} />
             </span>
           </div>
 
-          <div className="relative mt-5 min-h-10">
-            {phase >= 4 && !isPlaying ? (
+          <div className="relative mt-4 min-h-11">
+            {phase >= 7 && !isPlaying ? (
               <button
                 type="button"
                 onClick={runDemo}
-                className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-5 py-2.5 text-xs font-bold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-emerald-200 bg-white px-5 py-2.5 text-xs font-bold text-emerald-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-50 active:translate-y-0"
               >
-                <ArrowUpRight size={14} className="rotate-[-45deg]" />
+                <ArrowUpRight size={14} className="rotate-[-45deg]" aria-hidden="true" />
                 Replay Demo
               </button>
             ) : (
@@ -621,7 +748,30 @@ function MobileDemo() {
               </p>
             )}
           </div>
-        </div>
+          <div className="relative mt-6 grid w-full max-w-[480px] grid-cols-2 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+              <p className="text-[9px] font-bold uppercase tracking-[1.4px] text-slate-400">
+                Before feedback
+              </p>
+              <p className="mt-2 text-[11px] font-semibold text-slate-700">
+                No customer response captured yet
+              </p>
+            </div>
+            <div className={`rounded-xl border p-3.5 transition-colors ${
+              submitted ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"
+            }`}>
+              <p className="text-[9px] font-bold uppercase tracking-[1.4px] text-emerald-800">
+                After feedback · Sample
+              </p>
+              <p className="mt-2 text-[11px] font-semibold text-slate-700">
+                {submitted ? "5-star feedback received by AAKAAR" : "A rating and optional comment are captured"}
+              </p>
+            </div>
+            <p className="col-span-2 text-center text-[10px] leading-4 text-slate-500">
+              The comparison is illustrative. Google reviews are separate and only appear after the customer submits them on Google.
+            </p>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -792,6 +942,7 @@ function FAQ() {
   return (
     <section id="faq" className="scroll-mt-20 bg-white py-20 sm:py-24">
       <div className="mx-auto grid max-w-[1100px] gap-10 px-5 sm:px-8 lg:grid-cols-[0.7fr_1.3fr] lg:gap-16 lg:px-14">
+        <Reveal>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[3px] text-blue-700">
             FAQ
@@ -805,14 +956,15 @@ function FAQ() {
             Everything you need to know to get started with AAKAAR.
           </p>
         </div>
+        </Reveal>
 
         <div className="space-y-3">
           {questions.map(({ question, answer }, index) => {
             const isOpen = active === index;
             const panelId = `faq-answer-${index}`;
             return (
+              <Reveal key={question} delay={index * 45}>
               <article
-                key={question}
                 className={`overflow-hidden rounded-2xl border transition ${
                   isOpen ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200"
                 }`}
@@ -840,6 +992,7 @@ function FAQ() {
                   </div>
                 )}
               </article>
+              </Reveal>
             );
           })}
         </div>
@@ -852,6 +1005,7 @@ function Footer() {
   return (
     <footer className="border-t border-slate-200 bg-white">
       <div className="mx-auto grid max-w-[1200px] gap-10 px-5 py-12 sm:px-8 md:grid-cols-[1.4fr_0.8fr_0.8fr] lg:px-14">
+        <Reveal>
         <div>
           <Logo />
           <p className="mt-4 max-w-sm text-sm leading-7 text-slate-500">
@@ -859,6 +1013,8 @@ function Footer() {
             experiences and build a stronger business reputation.
           </p>
         </div>
+        </Reveal>
+        <Reveal>
         <div>
           <h2 className="text-[10px] font-bold uppercase tracking-[2px] text-slate-900">
             EXPLORE
@@ -870,6 +1026,8 @@ function Footer() {
             <a href="#faq" className="hover:text-blue-700">FAQ</a>
           </nav>
         </div>
+        </Reveal>
+        <Reveal>
         <div>
           <h2 className="text-[10px] font-bold uppercase tracking-[2px] text-slate-900">
             ACCOUNT & CONTACT
@@ -880,6 +1038,7 @@ function Footer() {
             <span className="text-xs text-slate-400">Contact details coming soon</span>
           </div>
         </div>
+        </Reveal>
       </div>
       <div className="border-t border-slate-100">
         <div className="mx-auto flex max-w-[1200px] flex-col gap-2 px-5 py-5 text-[11px] text-slate-400 sm:px-8 md:flex-row md:items-center md:justify-between lg:px-14">

@@ -9,6 +9,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import PublicLandingPage from "./pages/LandingPage.jsx";
+import { isGoogleReviewUrl } from "./utils/googleReviewUrl.js";
 
 import {
   ArrowRight,
@@ -110,6 +111,7 @@ function RegisterPage() {
     email: "",
     password: "",
     category: "Other",
+    googleReviewUrl: "",
   });
 
   const [error, setError] = useState("");
@@ -133,8 +135,17 @@ function RegisterPage() {
       return;
     }
 
+    const googleReviewUrl = form.googleReviewUrl.trim();
+    if (googleReviewUrl && !isGoogleReviewUrl(googleReviewUrl)) {
+      setError(
+        "Enter a valid HTTPS Google review link, such as a g.page or Google Maps review link.",
+      );
+      return;
+    }
+
     const business = {
       ...form,
+      googleReviewUrl,
       id: "business-" + Date.now(),
       createdAt: new Date().toISOString(),
     };
@@ -235,6 +246,23 @@ function RegisterPage() {
                   setForm({ ...form, password: e.target.value })
                 }
               />
+            </div>
+
+            <div className="form-group" id="google-review-url">
+              <label>Google review link (optional)</label>
+              <input
+                className="form-input"
+                type="url"
+                placeholder="Paste your Google review link"
+                value={form.googleReviewUrl}
+                onChange={(e) =>
+                  setForm({ ...form, googleReviewUrl: e.target.value })
+                }
+              />
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Customers can choose to open this link after submitting
+                feedback. Their Google review is published only on Google.
+              </p>
             </div>
 
             {error && <p className="form-error">{error}</p>}
@@ -617,6 +645,21 @@ function DashboardPage() {
                 <span>Email</span>
                 <strong>{business?.email || "Not available"}</strong>
               </div>
+              <div>
+                <span>Google review profile</span>
+                {business?.googleReviewUrl ? (
+                  <a
+                    href={business.googleReviewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-blue-700 hover:underline"
+                  >
+                    Open configured profile
+                  </a>
+                ) : (
+                  <strong>Not configured</strong>
+                )}
+              </div>
             </div>
           </section>
 
@@ -720,10 +763,25 @@ function CustomerReviewPage() {
           <div className="section-label">FEEDBACK RECEIVED</div>
           <h1>Thank you for sharing!</h1>
           <p>
-            Your feedback means a lot. Thank you for taking the time to share
-            your experience.
+            Your feedback was sent to this business through AAKAAR. A Google
+            review is separate and is only published if you choose to submit
+            one on Google.
           </p>
           <StarRating rating={rating} size={24} />
+          {business?.id === businessId && business.googleReviewUrl ? (
+            <a
+              href={business.googleReviewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary"
+            >
+              Continue to Google profile <ExternalLink size={16} />
+            </a>
+          ) : (
+            <p className="text-sm text-slate-500">
+              This business hasn’t connected a Google review profile.
+            </p>
+          )}
           <span className="success-brand">Powered by AAKAAR Reviews</span>
         </div>
       </div>
